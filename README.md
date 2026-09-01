@@ -1,6 +1,6 @@
 # payment-gateway-node-sdk
 
-The Paywize server SDK for Node.js. Node 18+, ESM and CommonJS, TypeScript types included.
+The payment gateway server SDK for Node.js. Node 18+, ESM and CommonJS, TypeScript types included.
 
 ```bash
 npm install payment-gateway-node-sdk
@@ -9,15 +9,15 @@ npm install payment-gateway-node-sdk
 ## Usage
 
 ```js
-import { Paywize } from 'payment-gateway-node-sdk';
+import { PaymentGateway } from 'payment-gateway-node-sdk';
 
-const paywize = new Paywize({
-  clientId: process.env.PAYWIZE_CLIENT_ID,
-  clientSecret: process.env.PAYWIZE_CLIENT_SECRET,   // server only. never a browser.
+const gateway = new PaymentGateway({
+  clientId: process.env.PG_CLIENT_ID,
+  clientSecret: process.env.PG_CLIENT_SECRET,   // server only. never a browser.
   environment: 'sandbox',
 });
 
-const order = await paywize.orders.create({
+const order = await gateway.orders.create({
   orderAmount: 499,
   customerDetails: { customerId: 'c1', customerPhone: '9999999999' },
 });
@@ -28,7 +28,7 @@ const order = await paywize.orders.create({
 ### Confirm before you ship
 
 ```js
-const order = await paywize.orders.fetch(orderId);
+const order = await gateway.orders.fetch(orderId);
 if (order.orderStatus === 'PAID') { /* safe */ }
 ```
 
@@ -36,7 +36,7 @@ if (order.orderStatus === 'PAID') { /* safe */ }
 
 ```js
 app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-  const event = paywize.webhooks.verify(
+  const event = gateway.webhooks.verify(
     req.body,                               // RAW bytes, not parsed JSON
     req.header('x-webhook-signature'),
     req.header('x-webhook-timestamp'),
@@ -45,6 +45,6 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
 });
 ```
 
-Full docs: https://docs.paywize.in/sdk/node
+Full docs: https://payment-gateway-docs.netlify.app/sdk/node
 
 MIT

@@ -1,16 +1,16 @@
 /**
- * paywize-pg — the Paywize server SDK for Node.
+ * payment-gateway-node-sdk — the payment gateway server SDK for Node.
  *
  * This runs on YOUR server and holds your secret key. It must never be imported into
  * browser code: the secret can create charges and issue refunds.
  *
- *   const paywize = new Paywize({ clientId, clientSecret, environment: 'sandbox' });
- *   const order = await paywize.orders.create({ ... });
+ *   const gateway = new PaymentGateway({ clientId, clientSecret, environment: 'sandbox' });
+ *   const order = await gateway.orders.create({ ... });
  *   // send order.paymentSessionId to the browser
  */
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
-  PaywizeError,
+  PaymentGatewayError,
   type CreateOrderRequest, type Environment, type Order,
   type Payment, type Refund, type WebhookEvent,
 } from './types.js';
@@ -24,7 +24,7 @@ const HOSTS: Record<Environment, string> = {
   production: 'https://payment-gateway-api-1juk.onrender.com',
 };
 
-export interface PaywizeConfig {
+export interface PaymentGatewayConfig {
   clientId: string;
   clientSecret: string;
   environment?: Environment;
@@ -34,11 +34,11 @@ export interface PaywizeConfig {
   timeout?: number;
 }
 
-export class Paywize {
+export class PaymentGateway {
   private readonly baseUrl: string;
   private readonly timeout: number;
 
-  constructor(private readonly config: PaywizeConfig) {
+  constructor(private readonly config: PaymentGatewayConfig) {
     if (!config?.clientId || !config?.clientSecret) {
       throw new Error('payment-gateway-node-sdk: clientId and clientSecret are required');
     }
@@ -113,13 +113,13 @@ export class Paywize {
      */
     verify: (rawBody: string | Buffer, signature: string, timestamp: string): WebhookEvent => {
       if (!signature || !timestamp) {
-        throw new PaywizeError('INVALID_SIGNATURE', 'Missing signature or timestamp header', 400);
+        throw new PaymentGatewayError('INVALID_SIGNATURE', 'Missing signature or timestamp header', 400);
       }
       // Replay guard: the timestamp is inside the signed payload, so an attacker
       // cannot resend yesterday's "payment succeeded" with a fresh clock.
       const ageMs = Math.abs(Date.now() - Number(timestamp) * 1000);
       if (!Number.isFinite(ageMs) || ageMs > 5 * 60_000) {
-        throw new PaywizeError('SIGNATURE_EXPIRED', 'Webhook timestamp is outside the 5 minute window', 400);
+        throw new PaymentGatewayError('SIGNATURE_EXPIRED', 'Webhook timestamp is outside the 5 minute window', 400);
       }
 
       const body = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf8');
@@ -130,7 +130,7 @@ export class Paywize {
       const a = Buffer.from(expected);
       const b = Buffer.from(signature);
       if (a.length !== b.length || !timingSafeEqual(a, b)) {
-        throw new PaywizeError('INVALID_SIGNATURE', 'Webhook signature did not match', 401);
+        throw new PaymentGatewayError('INVALID_SIGNATURE', 'Webhook signature did not match', 401);
       }
       return JSON.parse(body) as WebhookEvent;
     },
@@ -161,9 +161,9 @@ export class Paywize {
       // The request never completed, so the outcome is UNKNOWN — not failed.
       // Re-fetch the order before assuming anything.
       const aborted = (err as Error)?.name === 'AbortError';
-      throw new PaywizeError(
+      throw new PaymentGatewayError(
         aborted ? 'TIMEOUT' : 'NETWORK_ERROR',
-        aborted ? `Request timed out after ${this.timeout}ms` : 'Could not reach Paywize',
+        aborted ? `Request timed out after ${this.timeout}ms` : 'Could not reach the gateway',
         0,
       );
     } finally {
@@ -174,9 +174,9 @@ export class Paywize {
     const json = text ? safeParse(text) : {};
 
     if (!res.ok) {
-      throw new PaywizeError(
+      throw new PaymentGatewayError(
         json?.code ?? 'API_ERROR',
-        json?.message ?? `Paywize returned ${res.status}`,
+        json?.message ?? `The gateway returned ${res.status}`,
         res.status,
         res.headers.get('x-request-id') ?? undefined,
       );
@@ -189,4 +189,4 @@ function safeParse(text: string): any {
   try { return JSON.parse(text); } catch { return { message: text }; }
 }
 
-export default Paywize;
+export default PaymentGateway;

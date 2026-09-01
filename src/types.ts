@@ -28,7 +28,7 @@ export interface Order {
   orderStatus: OrderStatus;
   orderAmount: number;
   orderCurrency: string;
-  /** Hand this to paywize-js in the browser. Nothing else crosses to the client. */
+  /** Hand this to payment-gateway-browser-sdk in the browser. Nothing else crosses to the client. */
   paymentSessionId: string;
   customerDetails: CustomerDetails;
   orderNote?: string;
@@ -69,7 +69,7 @@ export interface WebhookEvent {
 }
 
 /** Thrown for any non-2xx. Inspect `code` — never parse `message`. */
-export class PaywizeError extends Error {
+export class PaymentGatewayError extends Error {
   constructor(
     public code: string,
     message: string,
@@ -77,6 +77,6 @@ export class PaywizeError extends Error {
     public requestId?: string,
   ) {
     super(message);
-    this.name = 'PaywizeError';
+    this.name = 'PaymentGatewayError';
   }
 }
