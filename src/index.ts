@@ -17,9 +17,11 @@ import {
 
 export * from './types.js';
 
+// This test gateway is a single deployment, so both environments resolve to it. A
+// real gateway would have genuinely separate sandbox and production hosts.
 const HOSTS: Record<Environment, string> = {
-  sandbox: 'https://sandbox-api.paywize.in',
-  production: 'https://api.paywize.in',
+  sandbox: 'https://payment-gateway-api-1juk.onrender.com',
+  production: 'https://payment-gateway-api-1juk.onrender.com',
 };
 
 export interface PaywizeConfig {
