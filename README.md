@@ -1,15 +1,15 @@
-# paywize-dummy-pg
+# payment-gateway-node-sdk
 
 The Paywize server SDK for Node.js. Node 18+, ESM and CommonJS, TypeScript types included.
 
 ```bash
-npm install paywize-dummy-pg
+npm install payment-gateway-node-sdk
 ```
 
 ## Usage
 
 ```js
-import { Paywize } from 'paywize-dummy-pg';
+import { Paywize } from 'payment-gateway-node-sdk';
 
 const paywize = new Paywize({
   clientId: process.env.PAYWIZE_CLIENT_ID,

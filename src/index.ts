@@ -38,7 +38,7 @@ export class Paywize {
 
   constructor(private readonly config: PaywizeConfig) {
     if (!config?.clientId || !config?.clientSecret) {
-      throw new Error('paywize-dummy-pg: clientId and clientSecret are required');
+      throw new Error('payment-gateway-node-sdk: clientId and clientSecret are required');
     }
     const env = config.environment ?? 'sandbox';
     this.baseUrl = (config.baseUrl ?? HOSTS[env]).replace(/\/$/, '');
@@ -49,9 +49,9 @@ export class Paywize {
 
   orders = {
     create: async (req: CreateOrderRequest): Promise<Order> => {
-      if (!(req.orderAmount > 0)) throw new Error('paywize-dummy-pg: orderAmount must be greater than 0');
+      if (!(req.orderAmount > 0)) throw new Error('payment-gateway-node-sdk: orderAmount must be greater than 0');
       if (!req.customerDetails?.customerPhone) {
-        throw new Error('paywize-dummy-pg: customerDetails.customerPhone is required');
+        throw new Error('payment-gateway-node-sdk: customerDetails.customerPhone is required');
       }
       const orderId = req.orderId ?? `order_${randomUUID()}`;
       return this.request<Order>('POST', '/pg/orders', {
@@ -150,7 +150,7 @@ export class Paywize {
           'x-client-id': this.config.clientId,
           'x-client-secret': this.config.clientSecret,
           'x-api-version': '2026-01-01',
-          'user-agent': 'paywize-dummy-pg-node/1.0.0',
+          'user-agent': 'payment-gateway-node-sdk-node/1.0.0',
           ...(idempotencyKey ? { 'x-idempotency-key': idempotencyKey } : {}),
         },
         body: body === undefined ? undefined : JSON.stringify(body),

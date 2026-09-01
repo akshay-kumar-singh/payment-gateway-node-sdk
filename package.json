@@ -1,5 +1,5 @@
 {
-  "name": "paywize-dummy-pg",
+  "name": "payment-gateway-node-sdk",
   "version": "1.0.0",
   "description": "Paywize server SDK for Node.js. Create orders, fetch payments, verify webhooks.",
   "keywords": [
