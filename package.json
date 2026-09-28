@@ -1,6 +1,6 @@
 {
   "name": "payment-gateway-node-sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Payment gateway server SDK for Node.js. Create orders, fetch payments, verify webhooks.",
   "keywords": [
     "payments",
