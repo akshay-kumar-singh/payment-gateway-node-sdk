@@ -6,6 +6,21 @@ The payment gateway server SDK for Node.js. Node 18+, ESM and CommonJS, TypeScri
 npm install payment-gateway-node-sdk
 ```
 
+## Try it right now
+
+There is no signup. The sandbox ships with one seeded test merchant:
+
+```bash title=".env"
+PG_CLIENT_ID=TEST_clientid_demo
+PG_CLIENT_SECRET=pgsk_TEST_secret_demo_00000000
+```
+
+Both SDKs already point at the hosted sandbox, so these two values are the whole setup.
+The keys are public deliberately — they move no real money.
+
+> **The sandbox sleeps.** It runs on a free host, so the first request after an idle spell
+> can take 30–60 seconds to wake. Requests after that are fast.
+
 ## Usage
 
 ```js
