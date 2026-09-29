@@ -13,6 +13,7 @@ import {
   PaymentGatewayError,
   type CreateOrderRequest, type Environment, type Order,
   type Payment, type Refund, type WebhookEvent,
+  type ListOrdersOptions, type Page,
 } from './types.js';
 
 export * from './types.js';
@@ -32,11 +33,17 @@ export interface PaymentGatewayConfig {
   baseUrl?: string;
   /** Milliseconds. Default 30s. */
   timeout?: number;
+  /** Retries after the first attempt, for failures worth retrying. Default 2. */
+  maxRetries?: number;
+  /** First backoff delay in ms; doubles each attempt. Default 300. */
+  retryBaseMs?: number;
 }
 
 export class PaymentGateway {
   private readonly baseUrl: string;
   private readonly timeout: number;
+  private readonly maxRetries: number;
+  private readonly retryBaseMs: number;
 
   constructor(private readonly config: PaymentGatewayConfig) {
     if (!config?.clientId || !config?.clientSecret) {
@@ -45,6 +52,8 @@ export class PaymentGateway {
     const env = config.environment ?? 'sandbox';
     this.baseUrl = (config.baseUrl ?? HOSTS[env]).replace(/\/$/, '');
     this.timeout = config.timeout ?? 30_000;
+    this.maxRetries = config.maxRetries ?? 2;
+    this.retryBaseMs = config.retryBaseMs ?? 300;
   }
 
   /* --------------------------------------------------------------- orders */
@@ -74,6 +83,24 @@ export class PaymentGateway {
     },
 
     /** The only trustworthy way to know an order is paid. Check before you ship. */
+    /**
+     * One page of orders, newest first.
+     *
+     * Cursor-based rather than offset-based: a new order arriving while you page
+     * cannot shift rows along and make you skip one.
+     */
+    all: (options: ListOrdersOptions = {}): Promise<Page<Order>> => this.listOrders(options),
+
+    /**
+     * Every order, fetched a page at a time.
+     *
+     *   for await (const order of gateway.orders.each()) { ... }
+     *
+     * Use this instead of a large limit: it holds one page in memory at a time,
+     * and stops the moment you break out of the loop.
+     */
+    each: (options: { limit?: number } = {}): AsyncGenerator<Order> => this.eachOrder(options),
+
     fetch: (orderId: string): Promise<Order> =>
       this.request<Order>('GET', `/pg/orders/${encodeURIComponent(orderId)}`),
 
@@ -136,9 +163,63 @@ export class PaymentGateway {
     },
   };
 
+  /* ------------------------------------------------------------ paging */
+
+  private listOrders(options: ListOrdersOptions = {}): Promise<Page<Order>> {
+    const query = new URLSearchParams();
+    if (options.limit !== undefined) query.set('limit', String(options.limit));
+    if (options.cursor) query.set('cursor', options.cursor);
+    const qs = query.toString();
+    return this.request<Page<Order>>('GET', `/pg/orders${qs ? '?' + qs : ''}`);
+  }
+
+  private async *eachOrder(options: { limit?: number } = {}): AsyncGenerator<Order> {
+    let cursor: string | undefined;
+    do {
+      const page: Page<Order> = await this.listOrders({ limit: options.limit, cursor });
+      yield* page.data;
+      cursor = page.nextCursor;
+    } while (cursor);
+  }
+
   /* ------------------------------------------------------------ transport */
 
+  /**
+   * Send one request, retrying the failures that are worth retrying.
+   *
+   * What gets retried: network errors, timeouts, 429, and 5xx. Those are the
+   * gateway's problem, not the caller's, and are usually gone a moment later.
+   *
+   * What never gets retried: any other 4xx. A declined card or a bad amount will
+   * be declined and bad again, and hammering it only adds load.
+   *
+   * Writes are only retried when they carry an idempotency key, because without
+   * one a retry could create a second order. The gateway dedupes on that key, so
+   * the retry returns the original order instead of charging twice.
+   */
   private async request<T>(method: string, path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
+    const safeToRetry = method === 'GET' || Boolean(idempotencyKey);
+    const attempts = safeToRetry ? this.maxRetries + 1 : 1;
+
+    let lastError: PaymentGatewayError | undefined;
+
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (attempt > 0) await sleep(backoffMs(attempt, this.retryBaseMs));
+
+      try {
+        return await this.send<T>(method, path, body, idempotencyKey);
+      } catch (err) {
+        const e = err as PaymentGatewayError;
+        lastError = e;
+        if (!isRetryable(e) || attempt === attempts - 1) throw e;
+      }
+    }
+
+    // Unreachable — the loop either returns or throws.
+    throw lastError;
+  }
+
+  private async send<T>(method: string, path: string, body?: unknown, idempotencyKey?: string): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
 
@@ -183,6 +264,20 @@ export class PaymentGateway {
     }
     return json as T;
   }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Exponential backoff with jitter, so a fleet of servers does not retry in lockstep. */
+function backoffMs(attempt: number, baseMs: number): number {
+  const exponential = baseMs * 2 ** (attempt - 1);
+  return Math.round(exponential * (0.5 + Math.random() * 0.5));
+}
+
+function isRetryable(err: PaymentGatewayError): boolean {
+  if (err.statusCode === 0) return true;           // never reached the gateway
+  if (err.statusCode === 429) return true;         // rate limited
+  return err.statusCode >= 500 && err.statusCode < 600;
 }
 
 function safeParse(text: string): any {

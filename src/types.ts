@@ -80,3 +80,17 @@ export class PaymentGatewayError extends Error {
     this.name = 'PaymentGatewayError';
   }
 }
+
+export interface ListOrdersOptions {
+  /** 1–100. Default 20. */
+  limit?: number;
+  /** From a previous page's nextCursor. Omit for the first page. */
+  cursor?: string;
+}
+
+export interface Page<T> {
+  data: T[];
+  /** Pass to the next call. Undefined means you have reached the end. */
+  nextCursor?: string;
+  hasMore: boolean;
+}
